@@ -1,368 +1,201 @@
-# 💡 Sistema de Lâmpada Inteligente IoT
+# Lampada Inteligente – ESP32-S3 N16R8
 
-Projeto desenvolvido para a disciplina **Práticas Integradas: Camada de Aplicação**, com o objetivo de implementar uma lâmpada inteligente utilizando ESP32, sensores e integração com Arduino IoT Cloud.
-
----
-
-## 📋 Descrição do Projeto
-
-O sistema consiste em uma lâmpada inteligente capaz de:
-
-* Monitorar temperatura ambiente.
-* Monitorar luminosidade do ambiente.
-* Controlar automaticamente um LED RGB.
-* Emitir alertas sonoros através de um buzzer.
-* Permitir controle remoto através do Arduino IoT Cloud.
-* Armazenar dados em banco de dados para monitoramento e análise.
-
-O projeto integra hardware, software, computação em nuvem e banco de dados, proporcionando uma experiência completa de desenvolvimento IoT.
+Sistema de lampada inteligente controlado localmente e remotamente via Arduino IoT Cloud.
+Desenvolvido como parte da avaliação AV2 da disciplina Praticas Integradas: Camada de Aplicacao – SENAI CIMATEC.
 
 ---
 
-# 🎯 Objetivos
+## Sobre o Projeto
 
-* Desenvolver um sistema IoT utilizando ESP32.
-* Integrar sensores e atuadores.
-* Enviar dados para a nuvem.
-* Armazenar dados em banco de dados.
-* Criar dashboards para monitoramento remoto.
-* Aplicar versionamento de código utilizando Git e GitHub.
+O sistema utiliza um ESP32-S3 para monitorar temperatura e luminosidade do ambiente e controlar
+um LED RGB automaticamente. O usuario tambem pode enviar comandos remotos pelo painel do Arduino IoT Cloud.
 
 ---
 
-# 🛠️ Componentes Utilizados
+## Hardware Utilizado
 
-| Componente            | Quantidade |
-| --------------------- | ---------- |
-| ESP32                 | 1          |
-| Sensor de Temperatura | 1          |
-| Fotorresistor (LDR)   | 1          |
-| LED RGB               | 1          |
-| Buzzer                | 1          |
-| Potenciômetro         | 1          |
-| Botão                 | 1          |
+| Componente       | Quantidade | Pino ESP32-S3                  |
+|------------------|------------|--------------------------------|
+| ESP32-S3 N16R8   | 1          | –                              |
+| LED RGB          | 1          | R: GPIO4, G: GPIO5, B: GPIO6   |
+| Buzzer           | 1          | GPIO7                          |
+| Botao            | 1          | GPIO9 (INPUT_PULLUP)           |
+| Sensor DHT22     | 1          | GPIO10                         |
+| Fotorresistor    | 1          | GPIO1 (ADC)                    |
+| Potenciometro    | 1          | GPIO2 (ADC)                    |
+| Resistor 220 ohm | 3          | Serie nos canais do LED RGB    |
+| Resistor 10k ohm | 1          | Divisor de tensao do LDR       |
 
 ---
 
-# 🏗️ Arquitetura do Sistema
+## Esquema de Ligacoes
 
-```text
-Sensores e Atuadores
-        │
-        ▼
-      ESP32
-        │
-        ▼
- Arduino IoT Cloud
-        │
-        ▼
-     Backend API
-        │
-        ▼
-   Banco de Dados
-        │
-        ▼
- Dashboard Online
+```
+ESP32-S3
+  GPIO4  --[220 ohm]-- LED_R --+
+  GPIO5  --[220 ohm]-- LED_G --+-- GND
+  GPIO6  --[220 ohm]-- LED_B --+
+
+  GPIO7  -- Buzzer (+) -- GND
+
+  GPIO9  -- Botao -- GND   (INPUT_PULLUP interno, sem resistor externo)
+
+  GPIO10 -- DHT22 DATA
+  3V3    -- DHT22 VCC
+  GND    -- DHT22 GND
+
+  3V3 --[LDR]--+-- GPIO1 (ADC)
+               +--[10k ohm]-- GND
+
+  3V3 -- Potenciometro extremidade 1
+  GND -- Potenciometro extremidade 2
+  GPIO2 (ADC) -- Potenciometro cursor (pino central)
 ```
 
 ---
 
-# ⚙️ Funcionalidades
+## Funcionalidades
 
-## Sensor de Temperatura
+**Automaticas (sem intervencao do usuario):**
+- LED RGB liga automaticamente quando o ambiente esta escuro (LDR abaixo do limite)
+- LED RGB apaga quando o ambiente esta claro
+- LED RGB apaga quando a temperatura esta fora da faixa segura (abaixo de 0 oC ou acima de 25 oC)
+- Buzzer dispara quando a temperatura esta fora da faixa segura
+- Potenciometro controla a cor do LED seguindo o espectro de temperatura de cor
 
-* Realiza leituras contínuas.
-* Exibe temperatura no monitor serial.
-* Aciona alerta quando:
+**Escala de cores do potenciometro:**
 
-```text
-Temperatura < 0°C
-ou
-Temperatura > 25°C
-```
+| Posicao     | Cor           |
+|-------------|---------------|
+| Minima      | Vermelho      |
+| Baixa       | Laranja       |
+| Media       | Branco quente |
+| Alta        | Azul turquesa |
+| Maxima      | Azul          |
 
-* Ativa o buzzer em situação de risco.
+**Botao fisico:**
+- Primeiro aperto: desliga LED e buzzer
+- Segundo aperto: reativa o sistema
+- Implementado via interrupcao externa
 
----
+**Painel Arduino IoT Cloud:**
 
-## Fotorresistor
+| Comando     | Acao                        |
+|-------------|-----------------------------|
+| Ligar       | Liga o sistema              |
+| Desligar    | Desliga o sistema           |
+| Vermelho    | LED vermelho por 1 segundo  |
+| Amarelo     | LED amarelo por 1 segundo   |
+| Azul        | LED azul por 1 segundo      |
 
-* Monitora a luminosidade do ambiente.
-* Aciona automaticamente o LED RGB quando o ambiente estiver escuro.
-
----
-
-## LED RGB
-
-### Controle Automático
-
-Liga quando:
-
-* Ambiente escuro.
-* Temperatura entre 0°C e 25°C.
-
-Desliga quando:
-
-* Ambiente claro.
-* Temperatura fora da faixa segura.
-* Sistema for desligado pelo botão.
-
-### Controle de Cor
-
-A cor é definida pelo potenciômetro:
-
-| Faixa | Cor      |
-| ----- | -------- |
-| Baixa | Vermelho |
-| Média | Amarelo  |
-| Alta  | Azul     |
-
-Seguindo o espectro:
-
-```text
-Vermelho → Laranja → Branco → Azul Turquesa → Azul
-```
+**Variaveis monitoradas no painel:**
+- Temperatura em graus Celsius
+- Luminosidade (valor bruto do ADC)
+- Posicao do potenciometro
+- Status do LED (ligado/desligado)
 
 ---
 
-## Botão
+## Como Montar o Projeto
 
-Implementado utilizando interrupção externa.
-
-Funções:
-
-* Primeiro clique:
-
-  * Desliga LED RGB.
-  * Desliga buzzer.
-
-* Segundo clique:
-
-  * Reativa LED RGB.
-  * Reativa buzzer.
+1. Monte os componentes na protoboard conforme o esquema de ligacoes acima
+2. Conecte o ESP32-S3 ao computador via USB
 
 ---
 
-## Buzzer
+## Como Configurar a Arduino IDE
 
-Emite alerta sonoro quando:
-
-```text
-Temperatura < 0°C
-ou
-Temperatura > 25°C
-```
+1. Baixe a Arduino IDE 2.x em arduino.cc/en/software
+2. Va em File -> Preferences e adicione a URL abaixo em "Additional boards manager URLs":
+   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+3. Va em Tools -> Board -> Boards Manager, pesquise "esp32" (Espressif) e instale
+4. Selecione: Tools -> Board -> ESP32 Arduino -> ESP32S3 Dev Module
 
 ---
 
-# ☁️ Integração com Arduino IoT Cloud
+## Como Instalar as Bibliotecas
 
-O sistema envia e recebe informações através do Arduino IoT Cloud.
+Va em Sketch -> Manage Libraries e instale:
 
-## Comandos Disponíveis
+- ArduinoIoTCloud (autor: Arduino)
+- Arduino_ConnectionHandler (autor: Arduino)
 
-### LED
-
-* Ligar
-* Desligar
-
-### Cores
-
-* Vermelho
-* Amarelo
-* Azul
-
-### Sensor de Temperatura
-
-* Ativar Temperatura
-* Desativar Temperatura
-
-### Fotorresistor
-
-* Ativar Detector
-* Desativar Detector
-
-### Buzzer
-
-* Ativar Buzzer
-* Desativar Buzzer
+Quando perguntar sobre dependencias, clique em "Install All".
 
 ---
 
-# 🗄️ Banco de Dados
+## Como Configurar as Credenciais
 
-O sistema registra informações coletadas pelos sensores.
-
-## Dados armazenados
-
-* Timestamp
-* Temperatura
-* Luminosidade
-* Estado do LED
-* Cor Atual
-* Estado do Buzzer
-
----
-
-# 🚀 Como Montar o Projeto
-
-## 1. Montagem Física
-
-Conectar ao ESP32:
-
-* Sensor de temperatura
-* Fotorresistor
-* LED RGB
-* Potenciômetro
-* Buzzer
-* Botão
-
-Consultar os datasheets dos componentes para definição dos pinos.
-
----
-
-## 2. Instalar Dependências
-
-### Arduino IDE
-
-Baixar:
-
-https://www.arduino.cc/en/software
-
-### Biblioteca ESP32
-
-Instalar pelo Gerenciador de Placas da Arduino IDE.
-
-### Bibliotecas Necessárias
+No topo do arquivo `lampada_iot_cloud.ino`, preencha com seus dados:
 
 ```cpp
-WiFi.h
-ArduinoIoTCloud.h
-Arduino_ConnectionHandler.h
+const char DEVICE_LOGIN_NAME[] = "SEU_DEVICE_ID";
+const char SSID[]              = "SEU_SSID";
+const char PASS[]              = "SUA_SENHA_WIFI";
+const char DEVICE_KEY[]        = "SUA_SECRET_KEY";
 ```
 
-Além das bibliotecas específicas dos sensores utilizados.
+O Device ID e a Secret Key sao gerados ao criar o dispositivo no Arduino IoT Cloud
+em create.arduino.cc/iot.
 
 ---
 
-## 3. Configurar Arduino IoT Cloud
+## Como Gravar o Firmware
 
-1. Criar uma conta.
-2. Registrar o dispositivo ESP32.
-3. Criar variáveis de nuvem.
-4. Gerar credenciais.
-5. Inserir as credenciais no firmware.
-
----
-
-# ▶️ Como Executar
-
-## Firmware ESP32
-
-1. Abrir o projeto na Arduino IDE.
-2. Selecionar a placa ESP32.
-3. Compilar.
-4. Fazer upload.
+1. Abra o arquivo `lampada_iot_cloud.ino` na Arduino IDE
+2. Preencha as credenciais conforme instrucoes acima
+3. Conecte o ESP32-S3 via USB
+4. Clique em Upload
+5. Abra o Serial Monitor em 115200 baud para acompanhar as leituras
 
 ---
 
-## Backend
+## Monitor Serial
 
-Exemplo utilizando Node.js:
+A cada 500 ms o sistema imprime no Serial Monitor:
 
-```bash
-npm install
-npm start
+```
+─────────────────────────────────
+LED RGB  : ON (ligado)
+Temp     : 23.4 oC
+Lumin.   : 842
+Pot      : 2100
+Sistema  : ATIVO
+Buzzer: DESLIGADO
 ```
 
-Servidor disponível em:
-
-```text
-http://localhost:3000
+Se a temperatura estiver fora da faixa segura, aparece tambem:
+```
+PERIGO! Desligar!
 ```
 
 ---
 
-# 📊 Dashboard
+## Estrutura do Repositorio
 
-O dashboard deve apresentar:
-
-* Temperatura
-* Luminosidade
-* Estado do LED
-* Cor Atual
-* Estado do Botão
-* Estado do Buzzer
-
-Com atualização automática em tempo real.
-
----
-
-# 📂 Estrutura do Projeto
-
-```text
-📦 projeto-lampada-inteligente
+```
+lampada-iot/
 ├── firmware/
-│   └── esp32
-│
-├── backend/
-│   ├── api
-│   └── database
-│
-├── docs/
-│   ├── esquematico
-│   └── imagens
-│
-├── README.md
-└── LICENSE
+│   └── lampada_iot_cloud.ino
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-# 🧪 Testes Realizados
+## Desafios Encontrados
 
-* Teste de leitura de temperatura.
-* Teste de leitura de luminosidade.
-* Teste de acionamento do LED RGB.
-* Teste do buzzer.
-* Teste do botão com interrupção.
-* Teste de comunicação com Arduino IoT Cloud.
-* Teste de persistência no banco de dados.
+- Leitura do DHT22 implementada manualmente sem biblioteca, respeitando o protocolo de temporização do sensor
+- Uso de interrupcao externa no botao para garantir resposta imediata independente do estado do loop principal
+- Intervalo minimo de 2 segundos entre leituras do DHT22 controlado via millis() para nao bloquear o loop
 
 ---
 
-# ⚠️ Possíveis Problemas
+## Referencias
 
-## ESP32 não conecta ao Wi-Fi
-
-Verifique:
-
-* SSID
-* Senha
-* Alcance da rede
-
-## Dados não aparecem no Dashboard
-
-Verifique:
-
-* Conexão com Arduino IoT Cloud.
-* Variáveis configuradas.
-* Token de autenticação.
-
-## Sensores sem leitura
-
-Verifique:
-
-* Alimentação.
-* Pinos conectados.
-* Bibliotecas instaladas.
-
----
-
-# 👥 Equipe
-
-* Vinicius Sousa Fernandes
-* Rafael Guerra de Oliveira
-* Lucca Badaró
+- Espressif Systems. ESP32-S3 Technical Reference Manual. 2022.
+- Arduino. Arduino IoT Cloud. Disponivel em: create.arduino.cc/iot
+- Wokwi. Online ESP32 and Arduino Simulator. Disponivel em: wokwi.com
+- Random Nerd Tutorials. ESP32 Tutorials. Disponivel em: randomnerdtutorials.com
 
 ---
